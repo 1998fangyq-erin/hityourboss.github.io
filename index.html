@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Beat the Boss / 暴打老板</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background-color: #f4f6f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; display: flex; flex-direction: column; align-items: center; height: 100vh; user-select: none; touch-action: none; }
+        
+        #ui-header { width: 100%; max-width: 800px; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; font-size: 20px; font-weight: bold; color: #222; background: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }
+        .ui-row { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 8px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        #level-name { font-size: 16px; color: #707579; font-weight: normal; } 
+        
+        .header-btns { display: flex; gap: 10px; }
+        .icon-btn { font-size: 22px; cursor: pointer; background: #f4f6f9; padding: 4px 10px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: transform 0.1s; display: flex; justify-content: center; align-items: center; border: none; }
+        .icon-btn:active { transform: scale(0.9); }
+        /* 语言切换按钮专用样式 */
+        #lang-btn { font-size: 15px; font-weight: 800; width: 46px; color: #3390ec; }
+        
+        #goal-text { color: #3390ec; }
+        #hp-display { color: #e53935; }
+        
+        #game-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; max-width: 500px; padding: 10px; box-sizing: border-box; }
+        .hole { position: relative; width: 100%; aspect-ratio: 3 / 4; overflow: hidden; border-radius: 10px; background: #e4e7eb; } 
+        .desk { position: absolute; bottom: 0; left: 0; width: 100%; height: auto; z-index: 2; pointer-events: none; }
+        .character { position: absolute; bottom: 25%; left: 15%; width: 70%; height: auto; z-index: 1; transform: translateY(120%); transition: transform 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94); cursor: pointer; pointer-events: auto; }
+        .character.up { transform: translateY(0); }
+        
+        .overlay-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; color: white; }
+        .screen-title { text-align: center; margin-bottom: 15px; font-size: 28px; font-weight: bold; }
+        .screen-desc { text-align: center; line-height: 1.6; padding: 0 20px; white-space: pre-wrap; font-size: 18px; color: #eee; }
+        
+        .action-btn { padding: 15px 40px; font-size: 18px; font-weight: bold; color: white; border: none; border-radius: 10px; cursor: pointer; margin-top: 20px; width: 85%; max-width: 320px; text-align: center;}
+        .action-btn:active { transform: scale(0.95); }
+        .btn-tg-blue { background: #3390ec; } 
+        .btn-tg-light-blue { background: #54a9eb; } 
+        .btn-tg-gray { background: #8e9096; } 
+        .btn-tg-gold { background: #fbc02d; color: #333; margin-top: 15px;} 
+
+        #leaderboard-list { width: 85%; max-width: 350px; background: rgba(255,255,255,0.95); border-radius: 12px; padding: 15px; margin-bottom: 20px; max-height: 40vh; overflow-y: auto; text-align: left; color: #333; box-shadow: 0 5px 15px rgba(0,0,0,0.2);}
+        .lb-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; font-size: 18px;}
+        .lb-item:last-child { border-bottom: none; }
+        .lb-rank { font-weight: bold; width: 30px; color: #fbc02d; }
+        .lb-name { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 10px; color: #333;}
+        .lb-score { font-weight: bold; color: #e53935; }
+    </style>
+</head>
+<body>
+
+    <div id="ui-header">
+        <div class="header-top">
+            <div id="level-name">Ready...</div>
+            <div class="header-btns">
+                <button id="lang-btn" class="icon-btn">EN</button>
+                <button id="mute-btn" class="icon-btn">🔊</button>
+                <button id="menu-btn" class="icon-btn">🔁</button>
+            </div>
+        </div>
+        <div class="ui-row">
+            <div>✅: <span id="score">0</span></div>
+            <div id="goal-text">🎯: --</div>
+            <div>❤️: <span id="hp-display">💊💊💊</span></div>
+        </div>
+    </div>
+
+    <div id="game-board"></div>
+
+    <div id="start-screen" class="overlay-screen">
+        <div id="screen-title" class="screen-title">Beat the Boss</div>
+        <div id="screen-desc" class="screen-desc"></div>
+        <button id="start-btn" class="action-btn btn-tg-blue"></button>
+        <button id="show-lb-btn" class="action-btn btn-tg-gold"></button>
+    </div>
+
+    <div id="pause-screen" class="overlay-screen" style="display: none; z-index: 200;">
+        <div id="pause-title" class="screen-title"></div>
+        <div id="pause-desc" class="screen-desc" style="display: none; margin-bottom: 10px;"></div>
+        <button id="resume-btn" class="action-btn btn-tg-blue"></button>
+        <button id="restart-all-btn" class="action-btn btn-tg-gray"></button>
+    </div>
+
+    <div id="revive-screen" class="overlay-screen" style="display: none; z-index: 150;">
+        <div id="revive-title" class="screen-title" style="color: #ff5252;"></div>
+        <div id="revive-desc" class="screen-desc" style="margin-bottom: 20px;"></div>
+        <button id="revive-share-btn" class="action-btn btn-tg-blue"></button>
+        <button id="revive-ad-btn" class="action-btn btn-tg-light-blue"></button>
+        <button id="revive-giveup-btn" class="action-btn btn-tg-gray" style="margin-top: 15px;"></button>
+    </div>
+
+    <div id="leaderboard-screen" class="overlay-screen" style="display: none; z-index: 300;">
+        <div id="lb-title" class="screen-title" style="color: #fbc02d;"></div>
+        <div id="leaderboard-list">
+            <div style="text-align:center; color:#666;">Loading...</div>
+        </div>
+        <button id="close-lb-btn" class="action-btn btn-tg-gray"></button>
+    </div>
+
+    <audio id="bgm" src="bgm.mp3" loop preload="auto"></audio>
+
+<script>
+    // ==========================================
+    // 🌐 多语言引擎 (i18n)
+    // ==========================================
+    let lang = localStorage.getItem('bossLang') || 'en'; // 默认英文
+
+    const T = {
+        zh: {
+            langBtn: "EN", // 提示切换到英文
+            ready: "准备上班...",
+            startTitle: "暴打狗老板",
+            startDesc: "【入职须知】\n不要漏打你的老板 | 不要误伤你的搭子",
+            startBtn: "下一步",
+            showLbBtn: "🏆 全网排行榜",
+            pauseTitle: "游戏已暂停",
+            resumeBtn: "▶️ 继续发泄",
+            restartAllBtn: "🔙 在周一重生",
+            reviveTitle: "濒临开除！",
+            reviveShareBtn: "📤 摇人帮忙 (本关限1次)",
+            reviveAdBtn: "📺 看广告复活 (本关限1次)",
+            reviveGiveupBtn: "💀 接受现实 (结束游戏)",
+            lbTitle: "🏆 卷王排行榜",
+            closeLbBtn: "关闭",
+            lbLoading: "加载中...",
+            lbEmpty: "暂无成绩，快去抢首杀！",
+            lbError: "获取失败，请检查网络或稍后重试",
+            toastMissBoss: "漏打老板！",
+            toastHitPartner: "误伤搭子！",
+            waitShare: "⏳ 等待分享完成...",
+            shareSuccess: "✅ 分享成功，点击继续游戏",
+            adTest: "【开发测试】\n这里之后会弹出一个 Adsgram 的广告。",
+            timeUnit: "秒",
+            ptsUnit: "分",
+            survive: "🎯: 活过 ",
+            reach: "🎯: 拿够 ",
+            highScore: "历史最高分: ",
+            invincible: "🛡️无敌",
+            dying: "濒死",
+            saveFound: "检测到游戏存档",
+            saveDesc: "欢迎回来！2 分钟内的进度已为你保留。",
+            survived: "顺利度过 ",
+            saveRestored: "存档已恢复，准备迎接明天的挑战。",
+            viewTask: "查看 ",
+            task: " 任务",
+            taskPrefix: "【当前任务】",
+            clockIn: "打卡上班",
+            overtime: "又得加班！",
+            uploading: "\n⏳ 正在上传成绩至全网榜单...",
+            endlessResult: "【拒绝加班结算】\n本次得分: ",
+            syncSuccess: "\n✅ 成绩已光荣同步至全网排名！",
+            syncReject: "\n⚠️ 数据库拒绝，成绩同步失败。",
+            syncFail: "\n⚠️ 网络原因，成绩同步失败。",
+            tooHard: "\n\n太难了，重回周一的炼狱吧！",
+            fired: "你被开除了！",
+            fellOn: "倒在了 ",
+            goFindJob: "，赶紧重新找工作吧。\n\n🤪 您实在是太菜了，无法参与排行榜！",
+            rehire: "重新入职 (回到周一)",
+            shareText: "我刚在暴打狗老板被虐了，快来帮我报仇！",
+            cause: "死因：",
+            bossFurious: "老板正在气头上，你还有补救的机会吗？"
+        },
+        en: {
+            langBtn: "中", // 提示切换到中文
+            ready: "Ready for work...",
+            startTitle: "Beat the Boss",
+            startDesc: "[Onboarding Rules]\nHit the boss | DO NOT hit your coworker",
+            startBtn: "Start Work",
+            showLbBtn: "🏆 Global Leaderboard",
+            pauseTitle: "Game Paused",
+            resumeBtn: "▶️ Resume",
+            restartAllBtn: "🔙 Quit (Back to Monday)",
+            reviveTitle: "Almost Fired!",
+            reviveShareBtn: "📤 Ask for Help (1/Level)",
+            reviveAdBtn: "📺 Watch Ad to Revive (1/Level)",
+            reviveGiveupBtn: "💀 Give Up (Game Over)",
+            lbTitle: "🏆 Top Employees",
+            closeLbBtn: "Close",
+            lbLoading: "Loading...",
+            lbEmpty: "No records yet, be the first!",
+            lbError: "Failed to fetch, please try again.",
+            toastMissBoss: "Missed the Boss!",
+            toastHitPartner: "Hit the Coworker!",
+            waitShare: "⏳ Waiting for share...",
+            shareSuccess: "✅ Shared! Click to Resume",
+            adTest: "[Test]\nAn Adsgram video ad will pop up here.",
+            timeUnit: "s",
+            ptsUnit: " pts",
+            survive: "🎯: Survive ",
+            reach: "🎯: Reach ",
+            highScore: "High Score: ",
+            invincible: "🛡️God",
+            dying: "Dying",
+            saveFound: "Save Game Found",
+            saveDesc: "Welcome back! Your progress within 2 mins has been saved.",
+            survived: "Survived ",
+            saveRestored: "Save restored. Ready for tomorrow's challenge.",
+            viewTask: "View ",
+            task: " Task",
+            taskPrefix: "[Current Task] ",
+            clockIn: "Clock In",
+            overtime: "Overtime Again!",
+            uploading: "\n⏳ Uploading score to global leaderboard...",
+            endlessResult: "[Endless Results]\nScore: ",
+            syncSuccess: "\n✅ Score successfully synced to Global Rank!",
+            syncReject: "\n⚠️ Database rejected, sync failed.",
+            syncFail: "\n⚠️ Network issue, sync failed.",
+            tooHard: "\n\nToo hard! Let's go back to Monday's hell!",
+            fired: "You are FIRED!",
+            fellOn: "Fell on ",
+            goFindJob: ". Go find a new job.\n\n🤪 You are too noob for the leaderboard!",
+            rehire: "Get Re-hired (Back to Mon)",
+            shareText: "I just got wrecked in Beat the Boss, come help me get revenge!",
+            cause: "Cause: ",
+            bossFurious: "Boss is furious, want to save your job?"
+        }
+    };
+
+    // ==========================================
+    // 🛡️ 原生直连 Supabase 数据库
+    // ==========================================
+    const DB_URL = 'https://ucsdthugptakzsjqtsmo.supabase.co/rest/v1/leaderboard';
+    const DB_KEY = 'sb_publishable_Qz0PpsR9ZlwS-ovKvlCceg_oa1o646N'; 
+    
+    const dbHeaders = {
+        'apikey': DB_KEY,
+        'Authorization': 'Bearer ' + DB_KEY,
+        'Content-Type': 'application/json'
+    };
+
+    let playerName = "Anonymous";
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+        playerName = window.Telegram.WebApp.initDataUnsafe.user.first_name || "Anonymous";
+    }
+
+    // ==========================================
+    // 游戏核心变量
+    // ==========================================
+    const board = document.getElementById('game-board');
+    const scoreEl = document.getElementById('score');
+    const hpEl = document.getElementById('hp-display');
+    const startScreen = document.getElementById('start-screen');
+    const pauseScreen = document.getElementById('pause-screen');
+    const startBtn = document.getElementById('start-btn');
+    const levelNameEl = document.getElementById('level-name');
+    const goalTextEl = document.getElementById('goal-text');
+
+    // 关卡词典化
+    const levels = [
+        { day: {zh:'星期一', en:'Monday'}, title: {zh:'节后综合征', en:'Monday Blues'}, desc: {zh:'限时 20秒！搭子请假了，热身一下发泄你的周末怨气！', en:'Survive 20s! Coworker is on leave, warm up and vent your weekend rage!'}, type: 'survive', target: 20, hp: 3, partnerRate: 0, stayTime: 1200, spawnSpeed: 1000 },
+        { day: {zh:'星期二', en:'Tuesday'}, title: {zh:'突击查岗', en:'Surprise Inspection'}, desc: {zh:'拿到 150 分通关！搭子来串门了，千万别误伤友军！', en:'Reach 150 pts! Coworker is around, DO NOT hit them!'}, type: 'score', target: 150, hp: 3, partnerRate: 0.3, stayTime: 1000, spawnSpeed: 800 },
+        { day: {zh:'星期三', en:'Wednesday'}, title: {zh:'夺命连环Call', en:'Endless Calls'}, desc: {zh:'在狂轰滥炸的需求中存活 30 秒！睁大眼睛！千万别手抖！', en:'Survive 30s of crazy demands! Keep your eyes open!'}, type: 'survive', target: 30, hp: 3, partnerRate: 0.4, stayTime: 800, spawnSpeed: 600 },
+        { day: {zh:'星期四', en:'Thursday'}, title: {zh:'极致甩锅', en:'Blame Game'}, desc: {zh:'拿到 150 分！你只有 1 滴血，零容错的极限挑战！', en:'Reach 150 pts! Only 1 HP, zero mistakes allowed!'}, type: 'score', target: 150, hp: 1, partnerRate: 0.5, stayTime: 700, spawnSpeed: 550 },
+        { day: {zh:'星期五', en:'Friday'}, title: {zh:'拒绝加班', en:'No Overtime'}, desc: {zh:'【无尽模式】你只有 1 滴血！\n分数越高速度越快！\n看看你的极限在哪里，挑战最高分！', en:'[Endless Mode] 1 HP only!\nThe higher the score, the faster it gets!\nChallenge the Global High Score!'}, type: 'endless', target: '无尽', hp: 1, partnerRate: 0.5, stayTime: 700, spawnSpeed: 550 }
+    ];
+
+    let currentLevel = 0;
+    let score = 0;
+    let hp = 3;
+    let isPlaying = false;
+    let gameLoop;
+    let timerInterval;
+    let timeLeft = 0;
+    let holes = [];
+    
+    let currentSpawnSpeed = 0;
+    let currentStayTime = 0;
+    let highestScore = localStorage.getItem('bossHighScore'); 
+    if (!highestScore) highestScore = 0; 
+
+    let screenState = 'intro'; 
+    let lastDeadReasonKey = '';
+    let isRestorePause = false;
+    let lastUploadText = '';
+
+    let reviveShareUsed = false; 
+    let reviveAdUsed = false;    
+
+    const preloadImages = ['boss.png', 'boss-hit.png', 'partner.png', 'partner-hit.png', 'desk.png'];
+    preloadImages.forEach(src => { const img = new Image(); img.src = src; });
+
+    const bgm = document.getElementById('bgm');
+    const muteBtn = document.getElementById('mute-btn');
+    let isMuted = false;
+
+    // ==========================================
+    // 🔄 动态渲染 UI (引擎核心)
+    // ==========================================
+    function applyLanguage() {
+        const t = T[lang];
+        // 渲染固定按钮
+        document.getElementById('lang-btn').innerText = t.langBtn;
+        document.getElementById('start-btn').innerText = t.startBtn;
+        document.getElementById('show-lb-btn').innerText = t.showLbBtn;
+        document.getElementById('resume-btn').innerText = t.resumeBtn;
+        document.getElementById('restart-all-btn').innerText = t.restartAllBtn;
+        document.getElementById('revive-ad-btn').innerText = t.reviveAdBtn;
+        document.getElementById('revive-giveup-btn').innerText = t.reviveGiveupBtn;
+        document.getElementById('close-lb-btn').innerText = t.closeLbBtn;
+        document.getElementById('lb-title').innerText = t.lbTitle;
+        if (document.getElementById('revive-share-btn').dataset.ready !== 'true') {
+            document.getElementById('revive-share-btn').innerText = t.reviveShareBtn;
+        }
+
+        // 渲染当前所处状态的动态文字
+        if (screenState === 'intro') {
+            document.getElementById('screen-title').innerText = t.startTitle;
+            document.getElementById('screen-desc').innerText = t.startDesc;
+            levelNameEl.innerText = t.ready;
+        } else if (screenState === 'briefing') {
+            showBriefing();
+        } else if (screenState === 'playing' || screenState === 'paused') {
+            const level = levels[currentLevel];
+            levelNameEl.innerText = level.day[lang] + ' · ' + level.title[lang];
+            updateGoalUI(level);
+            updateHpUI();
+            if (screenState === 'paused') {
+                document.getElementById('pause-title').innerText = isRestorePause ? t.saveFound : t.pauseTitle;
+                if (isRestorePause) document.getElementById('pause-desc').innerText = t.saveDesc;
+            }
+        } else if (screenState === 'revive') {
+            document.getElementById('revive-title').innerText = t.reviveTitle;
+            document.getElementById('revive-desc').innerText = t.cause + t[lastDeadReasonKey] + '\n\n' + t.bossFurious;
+        } else if (screenState === 'transition') {
+            if (hp <= 0) {
+                 if (levels[currentLevel].type === 'endless') {
+                     document.getElementById('screen-title').innerText = t.overtime;
+                     document.getElementById('screen-desc').innerText = t.endlessResult + score + '\n' + t.highScore + highestScore + lastUploadText + t.tooHard;
+                 } else {
+                     document.getElementById('screen-title').innerText = t.fired;
+                     document.getElementById('screen-desc').innerText = t.fellOn + levels[currentLevel].day[lang] + t.goFindJob;
+                 }
+                 startBtn.innerText = t.rehire;
+            } else {
+                 document.getElementById('screen-title').innerText = t.survived + levels[currentLevel-1].day[lang] + '！';
+                 document.getElementById('screen-desc').innerText = t.saveRestored;
+                 startBtn.innerText = t.viewTask + levels[currentLevel].day[lang] + t.task;
+            }
+        }
+    }
+
+    document.getElementById('lang-btn').addEventListener('click', () => {
+        lang = lang === 'zh' ? 'en' : 'zh';
+        localStorage.setItem('bossLang', lang);
+        applyLanguage();
+    });
+
+    muteBtn.addEventListener('click', () => {
+        isMuted = !isMuted;
+        bgm.muted = isMuted;
+        muteBtn.innerText = isMuted ? '🔇' : '🔊';
+        if (!isMuted && bgm.paused) bgm.play().catch(e => {});
+    });
+
+    document.body.addEventListener('pointerdown', () => {
+        if (!isMuted && bgm.paused) bgm.play().catch(e => {});
+    }, { once: true });
+
+    function saveGameState() {
+        if (screenState === 'intro' || hp <= 0) return; 
+        const state = {
+            currentLevel: currentLevel, score: score, hp: hp, timeLeft: timeLeft, 
+            currentSpawnSpeed: currentSpawnSpeed, currentStayTime: currentStayTime, screenState: screenState,
+            reviveShareUsed: reviveShareUsed, reviveAdUsed: reviveAdUsed, 
+            timestamp: Date.now()
+        };
+        localStorage.setItem('bossGameState', JSON.stringify(state));
+    }
+
+    setInterval(saveGameState, 1000);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') saveGameState();
+    });
+
+    function checkRestore() {
+        try {
+            const savedStr = localStorage.getItem('bossGameState');
+            if (!savedStr) return false;
+            const saved = JSON.parse(savedStr);
+            const now = Date.now();
+            if (now - saved.timestamp > 120000) {
+                localStorage.removeItem('bossGameState');
+                return false;
+            }
+            currentLevel = saved.currentLevel; score = saved.score; hp = saved.hp; timeLeft = saved.timeLeft;
+            currentSpawnSpeed = saved.currentSpawnSpeed; currentStayTime = saved.currentStayTime;
+            reviveShareUsed = saved.reviveShareUsed || false; reviveAdUsed = saved.reviveAdUsed || false;
+            
+            if (saved.screenState === 'playing' || saved.screenState === 'paused') {
+                screenState = 'paused';
+                isRestorePause = true;
+                startScreen.style.display = 'none'; 
+                document.getElementById('pause-desc').style.display = 'block';
+                pauseScreen.style.display = 'flex'; 
+            } else if (saved.screenState === 'transition') {
+                screenState = 'transition';
+                startScreen.style.display = 'flex';
+                document.getElementById('show-lb-btn').style.display = 'none'; 
+            } else if (saved.screenState === 'briefing') {
+                screenState = 'briefing';
+                startScreen.style.display = 'flex';
+                document.getElementById('show-lb-btn').style.display = 'none'; 
+            }
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function showBriefing() {
+        screenState = 'briefing';
+        const level = levels[currentLevel];
+        document.getElementById('screen-title').innerText = T[lang].taskPrefix + level.day[lang] + ' · ' + level.title[lang];
+        document.getElementById('screen-desc').innerText = level.desc[lang];
+        startBtn.innerText = T[lang].clockIn;
+        document.getElementById('show-lb-btn').style.display = 'none'; 
+        startScreen.style.display = 'flex';
+    }
+
+    function startLevel() {
+        screenState = 'playing';
+        const level = levels[currentLevel];
+        score = 0; hp = level.hp;
+        timeLeft = (level.type === 'time' || level.type === 'survive') ? level.target : 0;
+        reviveShareUsed = false; reviveAdUsed = false;
+        currentSpawnSpeed = level.spawnSpeed; currentStayTime = level.stayTime;
+        isPlaying = true;
+        
+        applyLanguage(); // 同步一次顶部栏
+
+        startScreen.style.display = 'none';
+        if(gameLoop) clearTimeout(gameLoop); if(timerInterval) clearInterval(timerInterval);
+        
+        initBoard(); scheduleNextPeep(level);
+
+        if (level.type === 'time' || level.type === 'survive') {
+            timerInterval = setInterval(() => {
+                if (!isPlaying) return;
+                timeLeft--;
+                goalTextEl.innerText = '🕐: ' + timeLeft + T[lang].timeUnit;
+                if (timeLeft <= 0) checkLevelComplete();
+            }, 1000);
+        }
+    }
+
+    function resumeGame() {
+        screenState = 'playing';
+        const level = levels[currentLevel];
+        isPlaying = true;
+        startScreen.style.display = 'none'; pauseScreen.style.display = 'none';
+        if(gameLoop) clearTimeout(gameLoop); if(timerInterval) clearInterval(timerInterval);
+        initBoard(); scheduleNextPeep(level); 
+        if (level.type === 'time' || level.type === 'survive') {
+            timerInterval = setInterval(() => {
+                if (!isPlaying) return;
+                timeLeft--;
+                goalTextEl.innerText = '🕐: ' + timeLeft + T[lang].timeUnit;
+                if (timeLeft <= 0) checkLevelComplete();
+            }, 1000);
+        }
+    }
+
+    function scheduleNextPeep(level) {
+        if (!isPlaying) return;
+        peep(level);
+        gameLoop = setTimeout(() => scheduleNextPeep(level), currentSpawnSpeed);
+    }
+
+    function updateGoalUI(level) {
+        if (level.type === 'time' || level.type === 'survive') goalTextEl.innerText = T[lang].survive + level.target + T[lang].timeUnit;
+        else if (level.type === 'score') goalTextEl.innerText = T[lang].reach + level.target + T[lang].ptsUnit;
+        else if (level.type === 'endless') goalTextEl.innerText = T[lang].highScore + highestScore; 
+    }
+
+    function updateHpUI() {
+        if (hp > 10) hpEl.innerText = T[lang].invincible;
+        else { let hpStr = ''; for(let i=0; i<hp; i++) hpStr += '💊'; hpEl.innerText = hpStr || T[lang].dying; }
+    }
+
+    function checkLevelComplete() {
+        if (!isPlaying) return;
+        const level = levels[currentLevel];
+        let isWin = false;
+        if ((level.type === 'time' || level.type === 'survive') && timeLeft <= 0 && hp > 0) isWin = true;
+        if (level.type === 'score' && score >= level.target) isWin = true;
+        if (isWin) levelVictory();
+    }
+
+    function levelVictory() {
+        isPlaying = false;
+        clearTimeout(gameLoop); if(timerInterval) clearInterval(timerInterval);
+        holes.forEach(h => clearHole(h));
+
+        setTimeout(() => {
+            currentLevel++;
+            if (currentLevel >= levels.length) {
+                currentLevel = 0; localStorage.removeItem('bossGameState'); 
+            } else {
+                screenState = 'transition';
+                startScreen.style.display = 'flex';
+                document.getElementById('show-lb-btn').style.display = 'none';
+                applyLanguage(); // 触发刷新文字
+            }
+        }, 500);
+    }
+
+    async function endGame() {
+        isPlaying = false;
+        clearTimeout(gameLoop); if(timerInterval) clearInterval(timerInterval);
+        holes.forEach(h => clearHole(h));
+        localStorage.removeItem('bossGameState'); 
+
+        if (levels[currentLevel].type === 'endless') {
+            lastUploadText = T[lang].uploading;
+            screenState = 'transition';
+            applyLanguage(); // 先显示上传中
+            
+            try {
+                const res = await fetch(DB_URL, {
+                    method: 'POST',
+                    headers: dbHeaders,
+                    body: JSON.stringify({ player_name: playerName, score: highestScore })
+                });
+                if(res.ok) lastUploadText = T[lang].syncSuccess;
+                else lastUploadText = T[lang].syncReject;
+            } catch (error) {
+                lastUploadText = T[lang].syncFail;
+            }
+        } else {
+            lastUploadText = '';
+        }
+        
+        setTimeout(() => {
+            screenState = 'transition';
+            startScreen.style.display = 'flex';
+            document.getElementById('show-lb-btn').style.display = 'block'; 
+            applyLanguage(); // 刷新最终结果
+            currentLevel = 0; 
+        }, 500);
+    }
+
+    document.getElementById('menu-btn').addEventListener('click', () => {
+        if (screenState !== 'playing') return; 
+        isPlaying = false; screenState = 'paused'; isRestorePause = false;
+        clearTimeout(gameLoop); if (timerInterval) clearInterval(timerInterval);
+        holes.forEach(h => clearHole(h));
+        document.getElementById('pause-desc').style.display = 'none'; 
+        pauseScreen.style.display = 'flex';
+        applyLanguage();
+    });
+
+    document.getElementById('resume-btn').addEventListener('click', () => {
+        if (screenState !== 'paused') return; 
+        resumeGame();
+    });
+
+    document.getElementById('restart-all-btn').addEventListener('click', () => {
+        pauseScreen.style.display = 'none'; currentLevel = 0; localStorage.removeItem('bossGameState'); 
+        screenState = 'intro'; startScreen.style.display = 'flex';
+        document.getElementById('show-lb-btn').style.display = 'block';
+        applyLanguage();
+    });
+
+    startBtn.addEventListener('click', () => {
+        if (screenState === 'intro' || screenState === 'transition') showBriefing();
+        else if (screenState === 'briefing') startLevel();
+    });
+
+    function clearHole(h) {
+        clearTimeout(h.timeout); h.charImg.classList.remove('up'); h.isUp = false;
+    }
+
+    function initBoard() {
+        if (holes && holes.length > 0) holes.forEach(h => clearHole(h));
+        board.innerHTML = ''; holes = [];
+        for (let i = 0; i < 9; i++) {
+            const holeEl = document.createElement('div'); holeEl.className = 'hole';
+            const charImg = document.createElement('img'); charImg.className = 'character';
+            const deskImg = document.createElement('img'); deskImg.className = 'desk'; deskImg.src = 'desk.png';
+            holeEl.appendChild(charImg); holeEl.appendChild(deskImg); board.appendChild(holeEl);
+            const holeData = { element: holeEl, charImg: charImg, isUp: false, type: '', isHit: false, timeout: null };
+            holes.push(holeData);
+            holeEl.addEventListener('mousedown', () => whack(holeData, charImg));
+            holeEl.addEventListener('touchstart', (e) => { e.preventDefault(); whack(holeData, charImg); });
+        }
+    }
+
+    function peep(level) {
+        if (!isPlaying) return;
+        const availableHoles = holes.filter(h => !h.isUp);
+        if (availableHoles.length === 0) return;
+        const hole = availableHoles[Math.floor(Math.random() * availableHoles.length)];
+        hole.type = Math.random() < level.partnerRate ? 'partner' : 'boss';
+        hole.charImg.src = hole.type === 'boss' ? 'boss.png' : 'partner.png';
+        hole.isUp = true; hole.isHit = false; hole.charImg.classList.add('up');
+        hole.timeout = setTimeout(() => {
+            if (!isPlaying) return; 
+            hole.charImg.classList.remove('up'); hole.isUp = false;
+            if (hole.type === 'boss' && !hole.isHit && level.type !== 'time') takeDamage("toastMissBoss"); 
+        }, currentStayTime);
+    }
+
+    function whack(holeData, charImg) {
+        if (!isPlaying || !holeData.isUp) return;
+        const level = levels[currentLevel];
+        if (holeData.type === 'boss') {
+            if (holeData.isHit) return; 
+            holeData.isHit = true; score += 10; scoreEl.innerText = score; charImg.src = 'boss-hit.png'; 
+            if (level.type === 'endless') {
+                if (score % 50 === 0) {
+                    currentSpawnSpeed = Math.max(250, currentSpawnSpeed - 40); 
+                    currentStayTime = Math.max(350, currentStayTime - 40);   
+                }
+                if (score > highestScore) {
+                    highestScore = score; localStorage.setItem('bossHighScore', highestScore);
+                    goalTextEl.innerText = T[lang].highScore + highestScore;
+                }
+            }
+            clearTimeout(holeData.timeout);
+            holeData.timeout = setTimeout(() => {
+                charImg.classList.remove('up'); holeData.isUp = false; checkLevelComplete(); 
+            }, 150);
+        } else if (holeData.type === 'partner') {
+            if (holeData.isHit) return; holeData.isHit = true; charImg.src = 'partner-hit.png'; 
+            clearTimeout(holeData.timeout);
+            holeData.timeout = setTimeout(() => {
+                charImg.classList.remove('up'); holeData.isUp = false; takeDamage("toastHitPartner");
+            }, 150);
+        }
+    }
+
+    function takeDamage(reasonKey) {
+        if (!isPlaying || hp > 10) return; 
+        hp--; updateHpUI();
+        document.body.style.backgroundColor = '#ffcccc';
+        setTimeout(() => { document.body.style.backgroundColor = '#f4f6f9'; }, 150);
+        if (hp <= 0) {
+            isPlaying = false;
+            clearTimeout(gameLoop); if(timerInterval) clearInterval(timerInterval);
+            holes.forEach(h => clearHole(h)); 
+            if (!reviveShareUsed) showReviveScreen(reasonKey, 'share');
+            else if (!reviveAdUsed) showReviveScreen(reasonKey, 'ad');
+            else endGame();
+        }
+    }
+
+    const reviveScreen = document.getElementById('revive-screen');
+    const reviveShareBtn = document.getElementById('revive-share-btn');
+    const reviveAdBtn = document.getElementById('revive-ad-btn');
+    const reviveGiveupBtn = document.getElementById('revive-giveup-btn');
+
+    function showReviveScreen(reasonKey, type) {
+        screenState = 'revive';
+        lastDeadReasonKey = reasonKey;
+        reviveShareBtn.style.display = type === 'share' ? 'block' : 'none';
+        reviveAdBtn.style.display = type === 'ad' ? 'block' : 'none';
+        reviveScreen.style.display = 'flex';
+        applyLanguage();
+    }
+
+    reviveShareBtn.addEventListener('click', () => {
+        if (reviveShareBtn.dataset.ready === 'true') {
+            reviveShareUsed = true; reviveShareBtn.dataset.ready = 'false'; 
+            reviveShareBtn.innerText = T[lang].reviveShareBtn; executeRevive(); return;
+        }
+        const gameUrl = "https://t.me/Bitbossss_bot/Hitboss"; 
+        const shareText = T[lang].shareText;
+        const shareUrl = "https://t.me/share/url?url=" + encodeURIComponent(gameUrl) + "&text=" + encodeURIComponent(shareText);
+        window.open(shareUrl, '_blank'); 
+
+        reviveShareBtn.innerText = T[lang].waitShare; reviveShareBtn.style.opacity = "0.7"; reviveShareBtn.style.pointerEvents = "none";
+        const checkReturn = () => {
+            if (document.visibilityState === 'visible') {
+                setTimeout(() => {
+                    reviveShareBtn.innerText = T[lang].shareSuccess;
+                    reviveShareBtn.style.opacity = "1"; reviveShareBtn.style.pointerEvents = "auto"; reviveShareBtn.dataset.ready = 'true'; 
+                }, 500);
+                document.removeEventListener('visibilitychange', checkReturn);
+            }
+        };
+        document.addEventListener('visibilitychange', checkReturn);
+        setTimeout(() => {
+            if (reviveShareBtn.dataset.ready !== 'true') {
+                reviveShareBtn.innerText = T[lang].shareSuccess;
+                reviveShareBtn.style.opacity = "1"; reviveShareBtn.style.pointerEvents = "auto"; reviveShareBtn.dataset.ready = 'true';
+                document.removeEventListener('visibilitychange', checkReturn);
+            }
+        }, 3000);
+    });
+
+    reviveAdBtn.addEventListener('click', () => {
+        alert(T[lang].adTest);
+        reviveAdUsed = true; executeRevive();
+    });
+
+    reviveGiveupBtn.addEventListener('click', () => { reviveScreen.style.display = 'none'; endGame(); });
+
+    function executeRevive() { reviveScreen.style.display = 'none'; hp = levels[currentLevel].hp; updateHpUI(); resumeGame(); }
+
+    // ==========================================
+    // 🏆 排行榜拉取 (支持多语言提示)
+    // ==========================================
+    document.getElementById('show-lb-btn').addEventListener('click', async () => {
+        document.getElementById('leaderboard-screen').style.display = 'flex';
+        const listEl = document.getElementById('leaderboard-list');
+        listEl.innerHTML = `<div style="text-align:center; color:#666;">${T[lang].lbLoading}</div>`;
+
+        try {
+            const response = await fetch(DB_URL + '?select=player_name,score&order=score.desc&limit=10', {
+                method: 'GET',
+                headers: dbHeaders
+            });
+
+            if (!response.ok) throw new Error('Network Error');
+            const data = await response.json();
+
+            listEl.innerHTML = ''; 
+            if (data.length === 0) {
+                listEl.innerHTML = `<div style="text-align:center; color:#666;">${T[lang].lbEmpty}</div>`;
+                return;
+            }
+
+            data.forEach((player, index) => {
+                let rankIcon = (index + 1) + '.';
+                if (index === 0) rankIcon = '🥇';
+                if (index === 1) rankIcon = '🥈';
+                if (index === 2) rankIcon = '🥉';
+                listEl.innerHTML += `
+                    <div class="lb-item">
+                        <span class="lb-rank">${rankIcon}</span>
+                        <span class="lb-name">${player.player_name}</span>
+                        <span class="lb-score">${player.score}</span>
+                    </div>`;
+            });
+        } catch (err) {
+            listEl.innerHTML = `<div style="text-align:center; color:#ff5252;">${T[lang].lbError}</div>`;
+        }
+    });
+
+    document.getElementById('close-lb-btn').addEventListener('click', () => {
+        document.getElementById('leaderboard-screen').style.display = 'none';
+    });
+
+    // 🚀 初始化引擎
+    checkRestore();
+    applyLanguage();
+
+</script>
+</body>
+</html>
