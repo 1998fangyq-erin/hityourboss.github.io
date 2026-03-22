@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Beat the Boss / 暴打老板</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
     <style>
         body { margin: 0; padding: 0; background-color: #f4f6f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; display: flex; flex-direction: column; align-items: center; height: 100vh; user-select: none; touch-action: none; }
         
@@ -53,7 +54,7 @@
         <div class="header-top">
             <div id="level-name">Ready...</div>
             <div class="header-btns">
-                <button id="lang-btn" class="icon-btn">EN</button>
+                <button id="lang-btn" class="icon-btn">中</button>
                 <button id="mute-btn" class="icon-btn">🔊</button>
                 <button id="menu-btn" class="icon-btn">🔁</button>
             </div>
@@ -101,13 +102,13 @@
 
 <script>
     // ==========================================
-    // 🌐 多语言引擎 (i18n)
+    // 🌐 多语言引擎 (i18n) - 默认设定为英文 'en'
     // ==========================================
-    let lang = localStorage.getItem('bossLang') || 'en'; // 默认英文
+    let lang = localStorage.getItem('bossLang') || 'en'; 
 
     const T = {
         zh: {
-            langBtn: "EN", // 提示切换到英文
+            langBtn: "EN", 
             ready: "准备上班...",
             startTitle: "暴打狗老板",
             startDesc: "【入职须知】\n不要漏打你的老板 | 不要误伤你的搭子",
@@ -129,7 +130,6 @@
             toastHitPartner: "误伤搭子！",
             waitShare: "⏳ 等待分享完成...",
             shareSuccess: "✅ 分享成功，点击继续游戏",
-            adTest: "【开发测试】\n这里之后会弹出一个 Adsgram 的广告。",
             timeUnit: "秒",
             ptsUnit: "分",
             survive: "🎯: 活过 ",
@@ -161,7 +161,7 @@
             bossFurious: "老板正在气头上，你还有补救的机会吗？"
         },
         en: {
-            langBtn: "中", // 提示切换到中文
+            langBtn: "中", 
             ready: "Ready for work...",
             startTitle: "Beat the Boss",
             startDesc: "[Onboarding Rules]\nHit the boss | DO NOT hit your coworker",
@@ -183,7 +183,6 @@
             toastHitPartner: "Hit the Coworker!",
             waitShare: "⏳ Waiting for share...",
             shareSuccess: "✅ Shared! Click to Resume",
-            adTest: "[Test]\nAn Adsgram video ad will pop up here.",
             timeUnit: "s",
             ptsUnit: " pts",
             survive: "🎯: Survive ",
@@ -245,7 +244,7 @@
     const levelNameEl = document.getElementById('level-name');
     const goalTextEl = document.getElementById('goal-text');
 
-    // 关卡词典化
+    // 关卡双语词典化
     const levels = [
         { day: {zh:'星期一', en:'Monday'}, title: {zh:'节后综合征', en:'Monday Blues'}, desc: {zh:'限时 20秒！搭子请假了，热身一下发泄你的周末怨气！', en:'Survive 20s! Coworker is on leave, warm up and vent your weekend rage!'}, type: 'survive', target: 20, hp: 3, partnerRate: 0, stayTime: 1200, spawnSpeed: 1000 },
         { day: {zh:'星期二', en:'Tuesday'}, title: {zh:'突击查岗', en:'Surprise Inspection'}, desc: {zh:'拿到 150 分通关！搭子来串门了，千万别误伤友军！', en:'Reach 150 pts! Coworker is around, DO NOT hit them!'}, type: 'score', target: 150, hp: 3, partnerRate: 0.3, stayTime: 1000, spawnSpeed: 800 },
@@ -284,11 +283,10 @@
     let isMuted = false;
 
     // ==========================================
-    // 🔄 动态渲染 UI (引擎核心)
+    // 🔄 动态渲染 UI (语言引擎)
     // ==========================================
     function applyLanguage() {
         const t = T[lang];
-        // 渲染固定按钮
         document.getElementById('lang-btn').innerText = t.langBtn;
         document.getElementById('start-btn').innerText = t.startBtn;
         document.getElementById('show-lb-btn').innerText = t.showLbBtn;
@@ -302,7 +300,6 @@
             document.getElementById('revive-share-btn').innerText = t.reviveShareBtn;
         }
 
-        // 渲染当前所处状态的动态文字
         if (screenState === 'intro') {
             document.getElementById('screen-title').innerText = t.startTitle;
             document.getElementById('screen-desc').innerText = t.startDesc;
@@ -426,7 +423,7 @@
         currentSpawnSpeed = level.spawnSpeed; currentStayTime = level.stayTime;
         isPlaying = true;
         
-        applyLanguage(); // 同步一次顶部栏
+        applyLanguage(); 
 
         startScreen.style.display = 'none';
         if(gameLoop) clearTimeout(gameLoop); if(timerInterval) clearInterval(timerInterval);
@@ -499,7 +496,7 @@
                 screenState = 'transition';
                 startScreen.style.display = 'flex';
                 document.getElementById('show-lb-btn').style.display = 'none';
-                applyLanguage(); // 触发刷新文字
+                applyLanguage(); 
             }
         }, 500);
     }
@@ -513,7 +510,7 @@
         if (levels[currentLevel].type === 'endless') {
             lastUploadText = T[lang].uploading;
             screenState = 'transition';
-            applyLanguage(); // 先显示上传中
+            applyLanguage(); 
             
             try {
                 const res = await fetch(DB_URL, {
@@ -534,7 +531,7 @@
             screenState = 'transition';
             startScreen.style.display = 'flex';
             document.getElementById('show-lb-btn').style.display = 'block'; 
-            applyLanguage(); // 刷新最终结果
+            applyLanguage(); 
             currentLevel = 0; 
         }, 500);
     }
@@ -688,9 +685,36 @@
         }, 3000);
     });
 
+    // ==========================================
+    // 💰 Adsgram 真实广告接入 (带防连点与多语言提示)
+    // ==========================================
     reviveAdBtn.addEventListener('click', () => {
-        alert(T[lang].adTest);
-        reviveAdUsed = true; executeRevive();
+        reviveAdBtn.style.pointerEvents = "none";
+        reviveAdBtn.style.opacity = "0.7";
+        const btnText = reviveAdBtn.innerText;
+        reviveAdBtn.innerText = lang === 'zh' ? "⏳ 加载中..." : "⏳ Loading...";
+
+        if (window.Adsgram) {
+            // 请注意：你的专属 25655 Block ID 已经填入
+            const AdController = window.Adsgram.init({ blockId: "25655" }); 
+
+            AdController.show().then((result) => {
+                reviveAdUsed = true; 
+                executeRevive();
+                reviveAdBtn.style.pointerEvents = "auto";
+                reviveAdBtn.style.opacity = "1";
+            }).catch((error) => {
+                alert(lang === 'zh' ? "⚠️ 广告未播完或加载失败，请重试！" : "⚠️ Ad not finished or failed to load!");
+                reviveAdBtn.innerText = btnText;
+                reviveAdBtn.style.pointerEvents = "auto";
+                reviveAdBtn.style.opacity = "1";
+            });
+        } else {
+            alert(lang === 'zh' ? "⚠️ 广告组件未加载完成，请稍后重试。" : "⚠️ Ad system not ready, please try again later.");
+            reviveAdBtn.innerText = btnText;
+            reviveAdBtn.style.pointerEvents = "auto";
+            reviveAdBtn.style.opacity = "1";
+        }
     });
 
     reviveGiveupBtn.addEventListener('click', () => { reviveScreen.style.display = 'none'; endGame(); });
@@ -698,7 +722,7 @@
     function executeRevive() { reviveScreen.style.display = 'none'; hp = levels[currentLevel].hp; updateHpUI(); resumeGame(); }
 
     // ==========================================
-    // 🏆 排行榜拉取 (支持多语言提示)
+    // 🏆 排行榜拉取 (原生直连)
     // ==========================================
     document.getElementById('show-lb-btn').addEventListener('click', async () => {
         document.getElementById('leaderboard-screen').style.display = 'flex';
