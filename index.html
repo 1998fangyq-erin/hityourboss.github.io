@@ -102,6 +102,26 @@
 
 <script>
     // ==========================================
+    // 📅 每日分享次数限制逻辑
+    // ==========================================
+    function getDailyShareCount() {
+        const today = new Date().toDateString();
+        const shareDataStr = localStorage.getItem('bossShareLimit');
+        if (shareDataStr) {
+            const shareData = JSON.parse(shareDataStr);
+            if (shareData.date === today) return shareData.count;
+        }
+        return 0; // 如果不是今天，或者没分享过，返回0
+    }
+
+    function incrementDailyShareCount() {
+        const today = new Date().toDateString();
+        let count = getDailyShareCount();
+        count++;
+        localStorage.setItem('bossShareLimit', JSON.stringify({ date: today, count: count }));
+    }
+
+    // ==========================================
     // 🌐 多语言引擎 (i18n) - 默认设定为英文 'en'
     // ==========================================
     let lang = localStorage.getItem('bossLang') || 'en'; 
@@ -118,7 +138,7 @@
             resumeBtn: "▶️ 继续发泄",
             restartAllBtn: "🔙 在周一重生",
             reviveTitle: "濒临开除！",
-            reviveShareBtn: "📤 摇人帮忙 (本关限1次)",
+            reviveShareBtn: "📤 摇人帮忙 (今日剩 {n} 次)", // 动态变量
             reviveAdBtn: "📺 看广告复活 (本关限1次)",
             reviveGiveupBtn: "💀 接受现实 (结束游戏)",
             lbTitle: "🏆 卷王排行榜",
@@ -171,7 +191,7 @@
             resumeBtn: "▶️ Resume",
             restartAllBtn: "🔙 Quit (Back to Monday)",
             reviveTitle: "Almost Fired!",
-            reviveShareBtn: "📤 Ask for Help (1/Level)",
+            reviveShareBtn: "📤 Ask for Help ({n} left today)", // 动态变量
             reviveAdBtn: "📺 Watch Ad to Revive (1/Level)",
             reviveGiveupBtn: "💀 Give Up (Game Over)",
             lbTitle: "🏆 Top Employees",
@@ -244,7 +264,6 @@
     const levelNameEl = document.getElementById('level-name');
     const goalTextEl = document.getElementById('goal-text');
 
-    // 关卡双语词典化
     const levels = [
         { day: {zh:'星期一', en:'Monday'}, title: {zh:'节后综合征', en:'Monday Blues'}, desc: {zh:'限时 20秒！搭子请假了，热身一下发泄你的周末怨气！', en:'Survive 20s! Coworker is on leave, warm up and vent your weekend rage!'}, type: 'survive', target: 20, hp: 3, partnerRate: 0, stayTime: 1200, spawnSpeed: 1000 },
         { day: {zh:'星期二', en:'Tuesday'}, title: {zh:'突击查岗', en:'Surprise Inspection'}, desc: {zh:'拿到 150 分通关！搭子来串门了，千万别误伤友军！', en:'Reach 150 pts! Coworker is around, DO NOT hit them!'}, type: 'score', target: 150, hp: 3, partnerRate: 0.3, stayTime: 1000, spawnSpeed: 800 },
@@ -296,8 +315,11 @@
         document.getElementById('revive-giveup-btn').innerText = t.reviveGiveupBtn;
         document.getElementById('close-lb-btn').innerText = t.closeLbBtn;
         document.getElementById('lb-title').innerText = t.lbTitle;
+        
+        // 动态替换分享按钮中的剩余次数变量
         if (document.getElementById('revive-share-btn').dataset.ready !== 'true') {
-            document.getElementById('revive-share-btn').innerText = t.reviveShareBtn;
+            const remainShares = Math.max(0, 3 - getDailyShareCount());
+            document.getElementById('revive-share-btn').innerText = t.reviveShareBtn.replace('{n}', remainShares);
         }
 
         if (screenState === 'intro') {
@@ -626,18 +648,28 @@
         }
     }
 
+    // ==========================================
+    // ⚔️ 扣血与复活判定中心 (新版逻辑)
+    // ==========================================
     function takeDamage(reasonKey) {
         if (!isPlaying || hp > 10) return; 
         hp--; updateHpUI();
         document.body.style.backgroundColor = '#ffcccc';
         setTimeout(() => { document.body.style.backgroundColor = '#f4f6f9'; }, 150);
+        
         if (hp <= 0) {
             isPlaying = false;
             clearTimeout(gameLoop); if(timerInterval) clearInterval(timerInterval);
             holes.forEach(h => clearHole(h)); 
-            if (!reviveShareUsed) showReviveScreen(reasonKey, 'share');
-            else if (!reviveAdUsed) showReviveScreen(reasonKey, 'ad');
-            else endGame();
+            
+            // 【核心改动】：只要本日分享次数小于3，且本关没用过，就弹分享；否则弹看广告。
+            if (!reviveShareUsed && getDailyShareCount() < 3) {
+                showReviveScreen(reasonKey, 'share');
+            } else if (!reviveAdUsed) {
+                showReviveScreen(reasonKey, 'ad');
+            } else {
+                endGame();
+            }
         }
     }
 
@@ -655,17 +687,32 @@
         applyLanguage();
     }
 
+    // 📤 分享复活处理
     reviveShareBtn.addEventListener('click', () => {
+        // 如果是从外网跳回来，点击真实复活
         if (reviveShareBtn.dataset.ready === 'true') {
-            reviveShareUsed = true; reviveShareBtn.dataset.ready = 'false'; 
-            reviveShareBtn.innerText = T[lang].reviveShareBtn; executeRevive(); return;
+            reviveShareUsed = true; 
+            reviveShareBtn.dataset.ready = 'false'; 
+            incrementDailyShareCount(); // 记录增加一次每日使用次数
+            
+            // 恢复原始文本
+            const remainShares = Math.max(0, 3 - getDailyShareCount());
+            reviveShareBtn.innerText = T[lang].reviveShareBtn.replace('{n}', remainShares); 
+            
+            executeRevive(); 
+            return;
         }
+        
+        // 第一次点击：拉起分享
         const gameUrl = "https://t.me/Bitbossss_bot/Hitboss"; 
         const shareText = T[lang].shareText;
         const shareUrl = "https://t.me/share/url?url=" + encodeURIComponent(gameUrl) + "&text=" + encodeURIComponent(shareText);
         window.open(shareUrl, '_blank'); 
 
-        reviveShareBtn.innerText = T[lang].waitShare; reviveShareBtn.style.opacity = "0.7"; reviveShareBtn.style.pointerEvents = "none";
+        reviveShareBtn.innerText = T[lang].waitShare; 
+        reviveShareBtn.style.opacity = "0.7"; 
+        reviveShareBtn.style.pointerEvents = "none";
+        
         const checkReturn = () => {
             if (document.visibilityState === 'visible') {
                 setTimeout(() => {
@@ -676,6 +723,7 @@
             }
         };
         document.addEventListener('visibilitychange', checkReturn);
+        
         setTimeout(() => {
             if (reviveShareBtn.dataset.ready !== 'true') {
                 reviveShareBtn.innerText = T[lang].shareSuccess;
@@ -686,7 +734,7 @@
     });
 
     // ==========================================
-    // 💰 Adsgram 真实广告接入 (带防连点与多语言提示)
+    // 💰 Adsgram 真实广告接入
     // ==========================================
     reviveAdBtn.addEventListener('click', () => {
         reviveAdBtn.style.pointerEvents = "none";
@@ -695,7 +743,6 @@
         reviveAdBtn.innerText = lang === 'zh' ? "⏳ 加载中..." : "⏳ Loading...";
 
         if (window.Adsgram) {
-            // 请注意：你的专属 8638221409 Block ID 已经填入
             const AdController = window.Adsgram.init({ blockId: "25777" }); 
 
             AdController.show().then((result) => {
